@@ -15,7 +15,8 @@ from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
 import torch.distributed as dist
 import torch.nn.parallel as para
-from pytorch_pretrained_bert.optimization import BertAdam
+from transformers.optimization import AdamW
+from transformers import get_linear_schedule_with_warmup
 from tqdm import trange, tqdm
 from tensorboardX import SummaryWriter
 
@@ -57,7 +58,7 @@ class TaskSetting(object):
         ('fp16', False),
         ('loss_scale', 128),
         ('cpt_file_name', 'task.cpt'),
-        ('summary_dir_name', '/root/summary'),
+        ('summary_dir_name', './summary'),
     ]
 
     def __init__(self, key_attrs, attr_default_pairs, **kwargs):
@@ -361,7 +362,7 @@ class BasePytorchTask(object):
 
     def _init_bert_optimizer(self):
         self.logging('='*20 + 'Init Bert Optimizer' + '='*20)
-        self.optimizer, self.num_train_steps, self.model_named_parameters = \
+        self.optimizer, self.schedule, self.num_train_steps, self.model_named_parameters = \
             self.reset_bert_optimizer()
 
     def reset_bert_optimizer(self):
@@ -391,13 +392,12 @@ class BasePytorchTask(object):
                               / self.setting.train_batch_size
                               / self.setting.gradient_accumulation_steps
                               * self.setting.num_train_epochs)
+        num_warmup_steps = self.setting.warmup_proportion * float(num_train_steps)
+        optimizer = AdamW(optimizer_grouped_parameters,
+                             lr=self.setting.learning_rate)
+        schedule = get_linear_schedule_with_warmup(optimizer,num_warmup_steps=num_warmup_steps,num_training_steps=num_training_steps)
 
-        optimizer = BertAdam(optimizer_grouped_parameters,
-                             lr=self.setting.learning_rate,
-                             warmup=self.setting.warmup_proportion,
-                             t_total=num_train_steps)
-
-        return optimizer, num_train_steps, model_named_parameters
+        return optimizer, schedule, num_train_steps, model_named_parameters
 
     def prepare_data_loader(self, dataset, batch_size, rand_flag=True):
         # prepare data loader
@@ -560,11 +560,13 @@ class BasePytorchTask(object):
                             self.model.zero_grad()
                             continue
                         self.optimizer.step()
+                        self.schedule.step()
                         copy_optimizer_params_to_model(
                             self.model.named_parameters(), self.model_named_parameters
                         )
                     else:
                         self.optimizer.step()
+                        self.schedule.step()
 
                     self.model.zero_grad()
                     global_step += 1
@@ -651,6 +653,7 @@ class BasePytorchTask(object):
 
         if self.optimizer:
             store_dict['optimizer_state'] = self.optimizer.state_dict()
+            store_dict["schedule_state"] = self.schedule.state_dict()
         else:
             self.logging('No optimizer state is dumped', level=logging.WARNING)
 
@@ -705,6 +708,7 @@ class BasePytorchTask(object):
         if resume_optimizer:
             if self.optimizer and 'optimizer_state' in store_dict:
                 self.optimizer.load_state_dict(store_dict['optimizer_state'])
+                self.schedule.load_state_dict(state_dict['schedule_state'])
                 self.logging('Resume optimizer successfully')
             elif strict:
                 raise Exception('Resume optimizer failed, dict.keys = {}'.format(store_dict.keys()))

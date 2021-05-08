@@ -5,6 +5,7 @@
 import argparse
 import os
 import torch.distributed as dist
+from collections import defaultdict
 
 from dee.utils import set_basic_log_config, strtobool
 from dee.dee_task import DEETask, DEETaskSetting
@@ -17,7 +18,7 @@ def parse_args(in_args=None):
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument('--task_name',default="doc2edag", type=str,
                             help='Take Name')
-    arg_parser.add_argument('--data_dir', type=str, default='./Data',
+    arg_parser.add_argument('--data_dir', type=str, default='./Data/financial',
                             help='Data directory')
     arg_parser.add_argument('--exp_dir', type=str, default='./Exps',
                             help='Experiment directory')

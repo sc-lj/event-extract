@@ -7,7 +7,7 @@ import os
 import torch.optim as optim
 import torch.distributed as dist
 from itertools import product
-
+from gensim.models import Word2Vec
 from .dee_helper import logger, DEEExample, DEEExampleLoader, DEEFeatureConverter, \
     convert_dee_features_to_dataset, prepare_doc_batch_dict, measure_dee_prediction, \
     decode_dump_template, eval_dump_template
@@ -24,7 +24,7 @@ class DEETaskSetting(TaskSetting):
         ('train_file_name', 'train.json'),
         ('dev_file_name', 'dev.json'),
         ('test_file_name', 'test.json'),
-        ('summary_dir_name', '/tmp/Summary'),
+        ('summary_dir_name', './Summary'),
         ('max_sent_len', 128),
         ('max_sent_num', 64),
         ('train_batch_size', 64),
@@ -38,7 +38,7 @@ class DEETaskSetting(TaskSetting):
         ('optimize_on_cpu', False),
         ('fp16', False),
         ('use_bert', False),  # whether to use bert as the encoder
-        ('bert_model', './chinese_bert'),  # use which pretrained bert model
+        ('bert_model', '../chinese_bert_base'),  # use which pretrained bert model
         ('only_master_logging', True),  # whether to print logs from multiple processes
         ('resume_latest_cpt', True),  # whether to resume latest checkpoints when training for fault tolerance
         ('cpt_file_name', 'Doc2EDAG'),  # decide the identity of checkpoints, evaluation results, etc.
@@ -51,7 +51,7 @@ class DEETaskSetting(TaskSetting):
         ('loss_lambda', 0.05),  # the proportion of ner loss
         ('loss_gamma', 1.0),  # the scaling proportion of missed span sentence ner loss
         ('add_greedy_dec', True),  # whether to add additional greedy decoding
-        ('use_token_role', True),  # whether to use detailed token role
+        ('use_token_role', False),  # whether to use detailed token role
         ('seq_reduce_type', 'MaxPooling'),   # use 'MaxPooling', 'MeanPooling' or 'AWA' to reduce a tensor sequence
         # network parameters (follow Bert Base)
         ('hidden_size', 768),

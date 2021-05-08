@@ -558,6 +558,8 @@ class DEEFeatureConverter(object):
                 for event_obj in event_objs:
                     assert isinstance(event_obj, BaseEvent)
 
+                    if not event_obj.is_key_complete():
+                        print(annguid)
                     event_arg_idxs = []
                     any_valid_flag = False
                     for field in event_fields:
